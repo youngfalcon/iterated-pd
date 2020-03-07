@@ -6,7 +6,7 @@
 // Description : Iterated PD in C++
 //============================================================================
 
-//TODO: Optimize simulation (memory deletion takes as much time as the rest of the program in the current state)
+//TODO: Optimize simulation
 
 #include <bits/stdc++.h>
 
