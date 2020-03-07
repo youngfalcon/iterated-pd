@@ -1,14 +1,14 @@
 //============================================================================
 // Name        : IteratedPD.cpp
 // Author      : Caglar Dogan - 2018400072
-// Version     : 1.0
+// Version     : 1.1
 // Copyright   : -
 // Description : Iterated PD in C++
 //============================================================================
 
+//TODO: Optimize simulation (memory deletion takes as much time as the rest of the program in the current state)
 
-// TODO: Fix the issue with "col" values, optimize deletion progress
-// As a temporary relief for the problem with "col" values, memory deletion process is randomized (can choose to forget a defector or a collaborator rather than strictly forgetting collaborators first)
+#include <bits/stdc++.h>
 
 #include <iostream>
 #include <utility>
@@ -24,19 +24,20 @@ private:
 
 public:
     unsigned short int c; //current number of people in memory
-    unsigned short int col; //current number of collaborators in memory
-	long long memory[200];
+	long memory[200];
 	unsigned short int id;
 	unsigned short int M; //memory (from 0 to 99)
 	unsigned short int P; //defection rate (from 0 to 100)
-	long long F; //Fitness
+	long F; //Fitness
+
+	unordered_set  <unsigned short int> collaborators;
+	unordered_set  <unsigned short int> defectors;
 
 	Agent() {
 		this->id = 100;
 		this->M = 50;
 		this->P = 50;
 		this->c = 0;
-		this->col = 0;
 		this->F = 0;
 
 	}
@@ -45,7 +46,6 @@ public:
 		this->M = M;
 		this->P = P;
 		this->c = 0;
-		this->col = 0;
 		this->F = 0;
 	}
 
@@ -98,14 +98,15 @@ void simulateGeneration(Agent* agents[100], int S, int P, int R, int T ,int numb
             unsigned short int roll1 = rand() % 100+1;
             unsigned short int roll2 = rand() % 100+1;
 
-            if(agents[id1]->memory[id2*2] == 0){
+
+            if(agents[id1]->memory[id2*2] == 0 && agents[id1]->M != 0){
+                //agents[id1]->collaborators.insert(id2); //assumes to be collaborator at first : line (1) - does not work properly
                 agents[id1]->c++;
-                agents[id1]->col++; //assume to be collaborator
             }
 
-            if(agents[id2]->memory[id1*2] == 0){
+            if(agents[id2]->memory[id1*2] == 0 && agents[id2]->M != 0){
                 agents[id2]->c++;
-                agents[id2]->col++; //assume to be collaborator
+                //agents[id2]->collaborators.insert(id1); //assumes to be collaborator at first : line (2) - does not work properly
             }
 
             agents[id1]->memory[id2*2]++;
@@ -115,35 +116,69 @@ void simulateGeneration(Agent* agents[100], int S, int P, int R, int T ,int numb
                 agents[id1]->F += P;
                 agents[id2]->F += P;
 
+                if(agents[id1]->M != 0){ //wouldn't have needed this if line(1) worked
+                    agents[id1]->collaborators.insert(id2);
+                }
+                if(agents[id2]->M != 0){ //wouldn't have needed this if line(1) worked
+                    agents[id2]->collaborators.insert(id1);
+                }
+
                 agents[id1]->memory[id2*2+1]++;
-                if((double(agents[id1]->memory[id2*2+1])/ agents[id1]->memory[id2*2])> 0.5){
-                    agents[id1]->col--; //mark as defector
+                if(((double(agents[id1]->memory[id2*2+1])/ agents[id1]->memory[id2*2])> 0.5)  && agents[id1]->M != 0){
+                    agents[id1]->collaborators.erase(agents[id1]->collaborators.find(id2));
+                    agents[id1]->defectors.insert(id2);
                 }
 
                 agents[id2]->memory[id1*2+1]++;
-                if((double(agents[id2]->memory[id1*2+1])/ agents[id2]->memory[id1*2])> 0.5){
-                    agents[id2]->col--; //mark as defector
+                if(((double(agents[id2]->memory[id1*2+1])/ agents[id2]->memory[id1*2])> 0.5)  && agents[id2]->M != 0){
+                    agents[id2]->collaborators.erase(agents[id2]->collaborators.find(id1));
+                    agents[id2]->defectors.insert(id1);
                 }
             }
             else if(roll1 <= agents[id1]->P && roll2 > agents[id2]->P){ //if agent 1 defects
                 agents[id1]->F += T;
                 agents[id2]->F += S;
 
+                if(agents[id1]->M != 0){ //wouldn't have needed this if line(1) worked
+                    agents[id1]->collaborators.insert(id2);
+                }
+                if(agents[id2]->M != 0){ //wouldn't have needed this if line(2) worked
+                    agents[id2]->collaborators.insert(id1);
+                }
+
                 agents[id2]->memory[id1*2+1]++;
-                if((double(agents[id2]->memory[id1*2+1])/ agents[id2]->memory[id1*2])> 0.5){
-                    agents[id2]->col--; //mark as defector
+                if(((double(agents[id2]->memory[id1*2+1])/ agents[id2]->memory[id1*2])> 0.5)  && agents[id2]->M != 0){
+                    agents[id2]->collaborators.insert(id1);
+                    agents[id2]->collaborators.erase(agents[id2]->collaborators.find(id1));
+                    agents[id2]->defectors.insert(id1);
                 }
             }
             else if(roll1 > agents[id1]->P && roll2 <= agents[id2]->P){ //if agent 2 defects
                 agents[id1]->F += S;
                 agents[id2]->F += T;
 
+                if(agents[id1]->M != 0){ //wouldn't have needed this if line(1) worked
+                    agents[id1]->collaborators.insert(id2);
+                }
+                if(agents[id2]->M != 0){ //wouldn't have needed this if line(2) worked
+                    agents[id2]->collaborators.insert(id1);
+                }
+
                 agents[id1]->memory[id2*2+1]++;
-                if((double(agents[id1]->memory[id2*2+1])/ agents[id1]->memory[id2*2])> 0.5){
-                    agents[id1]->col--; //mark as defector
+                if(((double(agents[id1]->memory[id2*2+1])/ agents[id1]->memory[id2*2])> 0.5) && agents[id1]->M != 0){
+                    agents[id1]->collaborators.erase(agents[id1]->collaborators.find(id2));
+                    agents[id1]->defectors.insert(id2);
                 }
             }
             else {  //if they both COOPERATE
+
+                if(agents[id1]->M != 0){ //wouldn't have needed this if line(1) worked
+                    agents[id1]->collaborators.insert(id2);
+                }
+                if(agents[id2]->M != 0){ //wouldn't have needed this if line(2) worked
+                    agents[id2]->collaborators.insert(id1);
+                }
+
                 agents[id1]->F += R;
                 agents[id2]->F += R;
             }
@@ -151,107 +186,44 @@ void simulateGeneration(Agent* agents[100], int S, int P, int R, int T ,int numb
             //deletion process of memory starts here
 
             if(agents[id1]->c > agents[id1]->M && agents[id1]->M !=0){ //if memory deletion is necessary
-                /*if(agents[id1]->col != 0){ //if there are collaborators in memory
-                    unsigned short int id=rand() % agents[id1]->col;
-                    short int idd = -1; //id of collaborator to be deleted
-                    for(int j=0; j<=id; j++){
-                        idd++;
-                        if(idd >= 100) {
-                                cout << "Error!1 ::" << idd << " ::"<< id << "::"<< agents[id1]->col<< ":c:"<< agents[id1]->c <<endl;
-                            }
-                        bool b = false;
-                        if(agents[id1]->memory[idd*2] == 0){
-                            b = true;
-                        }
-                        else if (double(agents[id1]->memory[idd*2+1])/agents[id1]->memory[idd*2] > 0.5){
-                            b = true;
-                        }
-
-                        while(b){ //continue until you find a collaborator
-                            idd++;
-                            if(idd >= 100) {
-                                cout << "Error!1 ::" <<  idd << " ::"<< id << "::"<< agents[id1]->col<< ":c:"<< agents[id1]->c<<endl;
-                            }
-                            if(agents[id1]->memory[idd*2] == 0){
-                                b = true;
-                            }
-                            else if (double(agents[id1]->memory[idd*2+1])/agents[id1]->memory[idd*2] > 0.5){
-                                b = true;
-                            }
-                            else {
-                                b = false;
-                            }
-                        }
-                    }
-                    agents[id1]->memory[idd*2] = 0;
-                    agents[id1]->memory[idd*2 + 1] = 0;
-                    agents[id1]->col--;
-                }*/
-                //else{ //if there are no collaborators in memory
-                    unsigned short int id=rand() % agents[id1]->c;
-                    short int idd = -1;
-                    for(int j=0; j<=id; j++){
-                        idd++;
-                        while(agents[id1]->memory[idd*2] == 0){
-                            idd++;
-                        }
-                    }
-                    agents[id1]->memory[idd*2] = 0;
-                    agents[id1]->memory[idd*2 + 1] = 0;
-                //}
+                unsigned short int col = agents[id1]->collaborators.size();
+                if(col != 0){
+                    unsigned short int index = rand() % col;
+                    unordered_set<unsigned short int>::iterator it = agents[id1]->collaborators.begin();
+                    advance(it,index);
+                    agents[id1]->memory[(*it)*2] = 0;
+                    agents[id1]->memory[(*it)*2+1] = 0;
+                    agents[id1]->collaborators.erase(it);
+                }
+                else{
+                    unsigned short int index = rand() % agents[id1]->defectors.size();
+                    unordered_set<unsigned short int>::iterator it = agents[id1]->defectors.begin();
+                    advance(it,index);
+                    agents[id1]->memory[(*it)*2] = 0;
+                    agents[id1]->memory[(*it)*2+1] = 0;
+                    agents[id1]->defectors.erase(it);
+                }
                 agents[id1]->c--;
             }
 
             if(agents[id2]->c > agents[id2]->M  && agents[id2]->M !=0){ //if memory deletion is necessary
-                /*if(agents[id2]->col != 0){ //if there are collaborators in memory
-                    unsigned short int id=rand() % agents[id2]->col;
-                    short int idd = -1; //id of collaborator to be deleted
-                    for(int j=0; j<=id; j++){
-                        idd++;
-                        if(idd >= 100) {
-                                cout << "Error!2 ::" <<  idd << " ::"<< id <<endl;
-                        }
-                        bool b = false;
-                        if(agents[id2]->memory[idd*2] == 0){
-                            b = true;
-                        }
-                        else if (double(agents[id2]->memory[idd*2+1])/agents[id2]->memory[idd*2] > 0.5){
-                            b = true;
-                        }
-
-                        while(b){ //continue until you find a collaborator
-                            idd++;
-                            if(idd >= 100) {
-                                cout << "Error!2 ::" << idd << " ::"<< id <<endl;
-                            }
-                            if(agents[id2]->memory[idd*2] == 0){
-                                b = true;
-                            }
-                            else if (double(agents[id2]->memory[idd*2+1])/agents[id2]->memory[idd*2] > 0.5){
-                                b = true;
-                            }
-                            else {
-                                b = false;
-                            }
-                        }
-                    }
-                    agents[id2]->memory[idd*2] = 0;
-                    agents[id2]->memory[idd*2 + 1] = 0;
-                    agents[id2]->col--;
-                }*/
-                //else{  //if there are no collaborators in memory
-                    unsigned short int id=rand() % agents[id2]->c;
-                    short int idd = -1;
-                    for(int j=0; j<=id; j++){
-                        idd++;
-                        while(agents[id2]->memory[idd*2] == 0){
-                            idd++;
-                        }
-                    }
-                    agents[id2]->memory[idd*2] = 0;
-                    agents[id2]->memory[idd*2 + 1] = 0;
-                //}
-
+                unsigned short int col = agents[id2]->collaborators.size();
+                if(col != 0){
+                    unsigned short int index = rand() % col;
+                    unordered_set<unsigned short int>::iterator it = agents[id2]->collaborators.begin();
+                    advance(it,index);
+                    agents[id2]->memory[(*it)*2] = 0;
+                    agents[id2]->memory[(*it)*2+1] = 0;
+                    agents[id2]->collaborators.erase(it);
+                }
+                else{
+                    unsigned short int index = rand() % agents[id2]->defectors.size();
+                    unordered_set<unsigned short int>::iterator it = agents[id2]->defectors.begin();
+                    advance(it,index);
+                    agents[id2]->memory[(*it)*2] = 0;
+                    agents[id2]->memory[(*it)*2+1] = 0;
+                    agents[id2]->defectors.erase(it);
+                }
                 agents[id2]->c--;
             }
 
